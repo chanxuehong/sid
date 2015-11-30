@@ -29,14 +29,14 @@ import (
 //   |                         hash (4-7)                            |
 //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-var pid = hash(uint64(os.Getpid())) // 12-bit hash of os.Getpid()
+var pid = hash(uint64(os.Getpid())) // 12-bit hash of os.Getpid(), read only
 
 // hash uint64 to a 12-bit integer value.
 func hash(x uint64) uint64 {
 	return (x ^ x>>12 ^ x>>24 ^ x>>36 ^ x>>48 ^ x>>60) & 0xfff
 }
 
-var node = internal.MAC[:]
+var node = internal.MAC[:] // read only
 
 const (
 	saltLen            = 43    // see New(), 8+4+43==55<56, Best performance for sha1.
@@ -46,16 +46,16 @@ const (
 )
 
 var (
-	salt = make([]byte, saltLen)
+	gSalt = make([]byte, saltLen)
 
-	mutex sync.Mutex
+	gMutex sync.Mutex // protect following
 
-	sidSequenceStart uint32 = rand.Uint32() & sidSequenceMask
-	sidLastTimestamp int64  = -1
-	sidLastSequence  uint32 = sidSequenceStart
+	gSequenceStart uint32 = rand.Uint32() & sidSequenceMask
+	gLastTimestamp int64  = -1
+	gLastSequence  uint32 = gSequenceStart
 
-	saltLastUpdateTimestamp int64  = -saltUpdateInterval
-	saltSequence            uint32 = rand.Uint32()
+	gSaltLastUpdateTimestamp int64  = -saltUpdateInterval
+	gSaltSequence            uint32 = rand.Uint32()
 )
 
 func New() (id []byte) {
@@ -64,33 +64,33 @@ func New() (id []byte) {
 		timeNowUnix      = timeNow.Unix()
 		saltShouldUpdate = false
 		sidTimestamp     = unix100nano(timeNow)
-		sidSequence      = sidSequenceStart
+		sidSequence      = gSequenceStart
 	)
 
-	mutex.Lock() // Lock
+	gMutex.Lock() // Lock
 	switch {
-	case sidTimestamp > sidLastTimestamp:
-		sidLastTimestamp = sidTimestamp
-		sidLastSequence = sidSequence
-	case sidTimestamp == sidLastTimestamp:
-		sidSequence = (sidLastSequence + 1) & sidSequenceMask
-		if sidSequence == sidSequenceStart {
+	case sidTimestamp > gLastTimestamp:
+		gLastTimestamp = sidTimestamp
+		gLastSequence = sidSequence
+	case sidTimestamp == gLastTimestamp:
+		sidSequence = (gLastSequence + 1) & sidSequenceMask
+		if sidSequence == gSequenceStart {
 			sidTimestamp = tillNext100nano(sidTimestamp)
-			sidLastTimestamp = sidTimestamp
+			gLastTimestamp = sidTimestamp
 		}
-		sidLastSequence = sidSequence
+		gLastSequence = sidSequence
 	default:
-		sidSequenceStart = rand.Uint32() & sidSequenceMask // NOTE
-		sidSequence = sidSequenceStart
-		sidLastTimestamp = sidTimestamp
-		sidLastSequence = sidSequence
+		gSequenceStart = rand.Uint32() & sidSequenceMask // NOTE
+		sidSequence = gSequenceStart
+		gLastTimestamp = sidTimestamp
+		gLastSequence = sidSequence
 	}
-	if timeNowUnix >= saltLastUpdateTimestamp+saltUpdateInterval {
+	if timeNowUnix >= gSaltLastUpdateTimestamp+saltUpdateInterval {
 		saltShouldUpdate = true
-		saltLastUpdateTimestamp = timeNowUnix
+		gSaltLastUpdateTimestamp = timeNowUnix
 	}
-	saltSequence++
-	mutex.Unlock() // Unlock
+	gSaltSequence++
+	gMutex.Unlock() // Unlock
 
 	// 56bits unix100ns + 12bits pid + 12bits sequence + 48bits node + 64bits hashsum
 	var idx [24]byte
@@ -121,8 +121,8 @@ func New() (id []byte) {
 
 	// hashsum
 	if saltShouldUpdate {
-		rand.Read(salt)
-		copy(idx[16:], salt)
+		rand.Read(gSalt)
+		copy(idx[16:], gSalt)
 	} else {
 		var src [8 + 4 + saltLen]byte // 8+4+43==55
 
@@ -134,11 +134,11 @@ func New() (id []byte) {
 		src[5] = byte(sidTimestamp >> 16)
 		src[6] = byte(sidTimestamp >> 8)
 		src[7] = byte(sidTimestamp)
-		src[8] = byte(saltSequence >> 24)
-		src[9] = byte(saltSequence >> 16)
-		src[10] = byte(saltSequence >> 8)
-		src[11] = byte(saltSequence)
-		copy(src[12:], salt)
+		src[8] = byte(gSaltSequence >> 24)
+		src[9] = byte(gSaltSequence >> 16)
+		src[10] = byte(gSaltSequence >> 8)
+		src[11] = byte(gSaltSequence)
+		copy(src[12:], gSalt)
 
 		hashsum := sha1.Sum(src[:])
 		copy(idx[16:], hashsum[:])
