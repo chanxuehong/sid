@@ -29,7 +29,7 @@ import (
 //   |                         hash (4-7)                            |
 //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-var pid = hash(uint64(os.Getpid())) // 12-bit hash of os.Getpid(), read only
+var pid = hash(uint64(os.Getpid())) // 12-bit hashsum of os.Getpid(), read only.
 
 // hash uint64 to a 12-bit integer value.
 func hash(x uint64) uint64 {
@@ -57,7 +57,7 @@ var (
 	gSaltSequence            uint32 = rand.Uint32()
 )
 
-func New() (id []byte) {
+func New() string {
 	var (
 		timeNow     = time.Now()
 		timeNowUnix = timeNow.Unix()
@@ -148,7 +148,7 @@ func New() (id []byte) {
 		copy(idx[16:], hashsum[:])
 	}
 
-	id = make([]byte, 32)
+	id := make([]byte, 32)
 	base64.URLEncoding.Encode(id, idx[:])
-	return
+	return string(id)
 }
