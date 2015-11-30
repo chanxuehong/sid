@@ -39,10 +39,9 @@ func hash(x uint64) uint64 {
 var node = internal.MAC[:] // read only
 
 const (
+	sequenceMask       = 0xfff // 12bits
 	saltLen            = 43    // see New(), 8+4+43==55<56, Best performance for sha1.
 	saltUpdateInterval = 86400 // seconds
-
-	sidSequenceMask = 0xfff // 12bits
 )
 
 var (
@@ -50,7 +49,7 @@ var (
 
 	gMutex sync.Mutex // protect following
 
-	gSequenceStart uint32 = rand.Uint32() & sidSequenceMask
+	gSequenceStart uint32 = rand.Uint32() & sequenceMask
 	gLastTimestamp int64  = -1
 	gLastSequence  uint32 = gSequenceStart
 
@@ -73,14 +72,14 @@ func New() (id []byte) {
 		gLastTimestamp = sidTimestamp
 		gLastSequence = sidSequence
 	case sidTimestamp == gLastTimestamp:
-		sidSequence = (gLastSequence + 1) & sidSequenceMask
+		sidSequence = (gLastSequence + 1) & sequenceMask
 		if sidSequence == gSequenceStart {
 			sidTimestamp = tillNext100nano(sidTimestamp)
 			gLastTimestamp = sidTimestamp
 		}
 		gLastSequence = sidSequence
 	default:
-		gSequenceStart = rand.Uint32() & sidSequenceMask // NOTE
+		gSequenceStart = rand.Uint32() & sequenceMask // NOTE
 		sidSequence = gSequenceStart
 		gLastTimestamp = sidTimestamp
 		gLastSequence = sidSequence
