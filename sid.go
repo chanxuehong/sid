@@ -57,6 +57,7 @@ var (
 	gSaltSequence            uint32 = rand.Uint32()
 )
 
+// New returns a unique 32-byte url-safe string.
 func New() string {
 	var (
 		timeNow     = time.Now()
