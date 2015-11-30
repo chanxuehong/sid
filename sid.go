@@ -41,7 +41,7 @@ var node = internal.MAC[:] // read only
 const (
 	sequenceMask       = 0xfff // 12bits
 	saltLen            = 43    // see New(), 8+4+43==55<56, Best performance for sha1.
-	saltUpdateInterval = 86400 // seconds
+	saltUpdateInterval = 3600  // seconds
 )
 
 var (
